@@ -56,7 +56,7 @@ func handleDecision(ctx context.Context, b *bot.Bot, update *models.Update){
 	if cb.Message.Message == nil {
 		return // ignore updates that aren't plain messages
 	}
-	if !approvers[cb.From.ID] {
+	if !checkUserTgTrait(cb.From.ID) {
 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: cb.ID,
 			Text:            "You're not allowed to do this.",
@@ -79,3 +79,9 @@ func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	fmt.Printf("Nothing to do ")
 }
 
+func checkUserTgTrait (tgUID int64) bool{
+	if !approvers[tgUID]{
+		return false
+	}
+	return true
+}
