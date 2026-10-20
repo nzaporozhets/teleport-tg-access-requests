@@ -3,25 +3,23 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
 
-
-type TgBot struct{
+type TgBot struct {
 	chatID int64
-	rqID string
 }
 
-
-func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot) {
-	rqText := fmt.Sprintf("New access request: %s", tb.rqID)
+func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot, rqID string) {
+	rqText := fmt.Sprintf("New access request: %s", rqID)
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "Approve", CallbackData: "request_approve"},
-				{Text: "Deny", CallbackData: "request_deny"},
-			}, 
+				{Text: "Approve", CallbackData: "request_approve" + ":" + rqID},
+				{Text: "Deny", CallbackData: "request_deny" + ":" + rqID},
+			},
 		},
 	}
 
@@ -35,4 +33,3 @@ func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot) {
 		println("send failed:", err.Error())
 	}
 }
-
