@@ -17,8 +17,8 @@ func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot, rqID string) {
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: "Approve", CallbackData: "request_approve" + ":" + rqID},
-				{Text: "Deny", CallbackData: "request_deny" + ":" + rqID},
+				{Text: "Approve", CallbackData: approveButtonID + ":" + rqID},
+				{Text: "Deny", CallbackData: denyButtonID + ":" + rqID},
 			},
 		},
 	}

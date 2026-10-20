@@ -130,6 +130,21 @@ func checkUserTgTrait(ctx context.Context, clt *client.Client, tgUID int64) (str
 }
 
 func (a *AccessRequestPlugin) Run(ctx context.Context) error {
+	for {
+		err := a.watchEvents(ctx)
+		if ctx.Err() != nil {
+			return nil // shutting down
+		}
+		fmt.Printf("watcher stopped: %v, reconnecting in 5s\n", err)
+		select {
+		case <-time.After(5 * time.Second):
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (a *AccessRequestPlugin) watchEvents(ctx context.Context) error {
 
 	watch, err := a.TeleportClient.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
@@ -151,8 +166,7 @@ func (a *AccessRequestPlugin) Run(ctx context.Context) error {
 				return trace.Wrap(err)
 			}
 		case <-watch.Done():
-			fmt.Println("The watcher job is finished")
-			return nil
+			return trace.Wrap(watch.Error(), "watcher closed")
 		}
 	}
 }
