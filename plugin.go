@@ -33,7 +33,11 @@ func (a *AccessRequestPlugin) HandleEvent(ctx context.Context, e types.Event) er
 	}
 
 	if _, ok := e.Resource.(*types.WatchStatusV1); ok {
-		fmt.Println("Successfully started listening for Access Requests...")
+		fmt.Println("Watcher ready, syncing pending requests")
+		err := a.syncPending(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		return nil
 	}
 
@@ -170,6 +174,23 @@ func (a *AccessRequestPlugin) watchEvents(ctx context.Context) error {
 			return trace.Wrap(watch.Error(), "watcher closed")
 		}
 	}
+}
+
+func (a *AccessRequestPlugin) syncPending(ctx context.Context) error {
+	reqs, err := a.TeleportClient.GetAccessRequests(ctx, types.AccessRequestFilter{
+		State: types.RequestState_PENDING,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	//TODO: add dedupe for sent messages
+	for _, r := range reqs {
+		a.postRequest(ctx, r)
+	}
+	return nil
+}
+func (a *AccessRequestPlugin) postRequest(ctx context.Context, r types.AccessRequest) {
+	a.tb.sendKeyboard(ctx, a.bot, r)
 }
 
 func findUserByTrait(ctx context.Context, clt *client.Client, key, value string) (string, error) {
