@@ -15,18 +15,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// TODO tmp plumbing to replace actual provider
-
-var traitKey string = "tg_uid"
-
-//end
-
 const (
 	approveButtonID = "request_approve"
 	denyButtonID    = "request_deny"
 )
 
 type AccessRequestPlugin struct {
+	cfg            Config
 	tb             *TgBot
 	bot            *bot.Bot
 	TeleportClient *client.Client
@@ -62,7 +57,7 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 	if cb.Message.Message == nil {
 		return // ignore updates that aren't plain messages
 	}
-	username, err := checkUserTgTrait(ctx, a.TeleportClient, cb.From.ID)
+	username, err := a.checkUserTgTrait(ctx, a.TeleportClient, cb.From.ID)
 	if err != nil {
 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: cb.ID,
@@ -119,9 +114,9 @@ func (a *AccessRequestPlugin) defaultHandler(ctx context.Context, b *bot.Bot, up
 	fmt.Printf("Nothing to do ")
 }
 
-func checkUserTgTrait(ctx context.Context, clt *client.Client, tgUID int64) (string, error) {
+func (a *AccessRequestPlugin) checkUserTgTrait(ctx context.Context, clt *client.Client, tgUID int64) (string, error) {
 	s := strconv.Itoa(int(tgUID))
-	usr, err := findUserByTrait(ctx, clt, traitKey, s)
+	usr, err := findUserByTrait(ctx, clt, a.cfg.TgTraitKey, s)
 	if err != nil {
 		return "", err
 	}

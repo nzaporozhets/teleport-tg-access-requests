@@ -24,11 +24,10 @@ func main() {
 	fmt.Printf("Config successfully loaded\n")
 
 	//TODO parameterize from cfg
-	var proxyAddr string = "clusteraddr:443"
 	creds := client.LoadIdentityFile("identity")
 
 	teleport, err := client.New(ctx, client.Config{
-		Addrs:       []string{proxyAddr},
+		Addrs:       []string{cfg.TeleportProxyUrl},
 		Credentials: []client.Credentials{creds},
 		DialOpts: []grpc.DialOption{
 			grpc.WithReturnConnectionError(),
@@ -40,6 +39,7 @@ func main() {
 	defer teleport.Close()
 
 	plugin := &AccessRequestPlugin{
+		cfg:            cfg,
 		TeleportClient: teleport,
 		tb:             &TgBot{chatID: cfg.TgChatId},
 	}

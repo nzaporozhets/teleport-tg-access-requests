@@ -1,47 +1,57 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
-	"fmt"
-	"errors"
 )
 
 type Config struct {
 	//TG
 	TgBotToken string
-	TgChatId int64
+	TgChatId   int64
 	//Teleport
-	//TeleportProxyUrl string
+	TeleportProxyUrl string
 	//TeleportCreds
+	//Optional
+	TgTraitKey string
 }
 
-func loadConfig() (Config, error){
-	var errs [ ]error
-	required := func (key string) string{
-		v:= os.Getenv(key)	
+func loadConfig() (Config, error) {
+	var errs []error
+	required := func(key string) string {
+		v := os.Getenv(key)
 		if v == "" {
-			errs = append (errs, fmt.Errorf("%s is required", key))
+			errs = append(errs, fmt.Errorf("%s is required", key))
 		}
 		return v
 	}
-	requiredInt64 := func (key string) int64{
+	requiredInt64 := func(key string) int64 {
 		raw := required(key)
-		if raw == ""{
+		if raw == "" {
 			return 0
 		}
 		n, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil{
-			errs = append (errs, fmt.Errorf("%s needs to be an integer: %w", key, err))
-		} 
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s needs to be an integer: %w", key, err))
+		}
 		return n
 	}
-	
-	cfg := Config{
-		TgBotToken: required("TELEGRAM_BOT_TOKEN"),
-		TgChatId: requiredInt64("TELEGRAM_CHAT_ID"),
+	optional := func(key string, def string) string {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
+		return def
 	}
-	if err := errors.Join(errs...); err != nil{
+
+	cfg := Config{
+		TgBotToken:       required("TELEGRAM_BOT_TOKEN"),
+		TgChatId:         requiredInt64("TELEGRAM_CHAT_ID"),
+		TeleportProxyUrl: required("TELEPORT_PROXY"),
+		TgTraitKey:       optional("TG_TRAIT_KEY", "tg_uid"),
+	}
+	if err := errors.Join(errs...); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
