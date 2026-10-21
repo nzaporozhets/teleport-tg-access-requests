@@ -45,7 +45,7 @@ func (a *AccessRequestPlugin) HandleEvent(ctx context.Context, e types.Event) er
 	if e.Type != types.OpPut || !r.GetState().IsPending() {
 		return nil
 	}
-	a.tb.sendKeyboard(ctx, a.bot, r.GetName())
+	a.tb.sendKeyboard(ctx, a.bot, r)
 	return nil
 }
 
@@ -57,7 +57,7 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 	if cb.Message.Message == nil {
 		return // ignore updates that aren't plain messages
 	}
-	username, err := a.checkUserTgTrait(ctx, a.TeleportClient, cb.From.ID)
+	username, err := a.checkUserTgTrait(ctx, cb.From.ID)
 	if err != nil {
 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: cb.ID,
@@ -104,19 +104,25 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 		return
 	}
 	//TODO deactivate chat buttons after decision
-	b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: cb.Message.Message.Chat.ID,
-		Text:   "Selected action: " + cb.Data,
+	b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:    cb.Message.Message.Chat.ID,
+		MessageID: cb.Message.Message.ID,
+		Text:      cb.Message.Message.Text + "\n\nThis request has been reviewed by " + username + "\nDecision: " + action,
 	})
+
+	// b.SendMessage(ctx, &bot.SendMessageParams{
+	// 	ChatID: cb.Message.Message.Chat.ID,
+	// 	Text:   "Selected action: " + cb.Data,
+	// })
 }
 
 func (a *AccessRequestPlugin) defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	fmt.Printf("Nothing to do ")
 }
 
-func (a *AccessRequestPlugin) checkUserTgTrait(ctx context.Context, clt *client.Client, tgUID int64) (string, error) {
+func (a *AccessRequestPlugin) checkUserTgTrait(ctx context.Context, tgUID int64) (string, error) {
 	s := strconv.Itoa(int(tgUID))
-	usr, err := findUserByTrait(ctx, clt, a.cfg.TgTraitKey, s)
+	usr, err := findUserByTrait(ctx, a.TeleportClient, a.cfg.TgTraitKey, s)
 	if err != nil {
 		return "", err
 	}

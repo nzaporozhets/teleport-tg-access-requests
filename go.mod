@@ -3,6 +3,13 @@ module teleport-tg-access-requests
 go 1.27.2
 
 require (
+	github.com/go-telegram/bot v1.27.0
+	github.com/gravitational/teleport/api v0.0.0-20260813024307-37c3a8a456ec
+	github.com/gravitational/trace v1.5.4
+	google.golang.org/grpc v1.82.1
+)
+
+require (
 	github.com/beevik/etree v1.6.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -12,14 +19,11 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-piv/piv-go/v2 v2.6.0 // indirect
-	github.com/go-telegram/bot v1.27.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gravitational/teleport/api v0.0.0-20260813024307-37c3a8a456ec // indirect
-	github.com/gravitational/trace v1.5.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
@@ -42,7 +46,6 @@ require (
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.82.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
