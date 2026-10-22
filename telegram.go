@@ -14,7 +14,7 @@ type TgBot struct {
 	chatID int64
 }
 
-func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot, r types.AccessRequest) {
+func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot, r types.AccessRequest) *models.Message {
 	var rqReason string
 	if rqReason = r.GetRequestReason(); rqReason == "" {
 		rqReason = "[Not provided]"
@@ -29,7 +29,7 @@ func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot, r types.AccessReq
 		},
 	}
 
-	_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+	msg, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      tb.chatID,
 		Text:        rqText,
 		ReplyMarkup: kb,
@@ -38,4 +38,5 @@ func (tb *TgBot) sendKeyboard(ctx context.Context, b *bot.Bot, r types.AccessReq
 		// handle/log properly in real code
 		println("send failed:", err.Error())
 	}
+	return msg
 }

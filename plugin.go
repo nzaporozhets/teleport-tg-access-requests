@@ -20,6 +20,8 @@ const (
 	denyButtonID    = "request_deny"
 )
 
+var messageRequestMap = make(map[string]int)
+
 type AccessRequestPlugin struct {
 	cfg            Config
 	tb             *TgBot
@@ -33,8 +35,8 @@ func (a *AccessRequestPlugin) HandleEvent(ctx context.Context, e types.Event) er
 	}
 
 	if _, ok := e.Resource.(*types.WatchStatusV1); ok {
-		fmt.Println("Watcher ready, syncing pending requests")
-		err := a.syncPending(ctx)
+		fmt.Println("Watcher ready, syncing existing requests")
+		err := a.syncExisting(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -49,7 +51,7 @@ func (a *AccessRequestPlugin) HandleEvent(ctx context.Context, e types.Event) er
 	if e.Type != types.OpPut || !r.GetState().IsPending() {
 		return nil
 	}
-	a.tb.sendKeyboard(ctx, a.bot, r)
+	a.postRequest(ctx, r)
 	return nil
 }
 
@@ -107,7 +109,7 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 		}
 		return
 	}
-	//TODO deactivate chat buttons after decision
+
 	b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    cb.Message.Message.Chat.ID,
 		MessageID: cb.Message.Message.ID,
@@ -176,21 +178,86 @@ func (a *AccessRequestPlugin) watchEvents(ctx context.Context) error {
 	}
 }
 
-func (a *AccessRequestPlugin) syncPending(ctx context.Context) error {
+func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 	reqs, err := a.TeleportClient.GetAccessRequests(ctx, types.AccessRequestFilter{
 		State: types.RequestState_PENDING,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	//TODO: add dedupe for sent messages
+
 	for _, r := range reqs {
-		a.postRequest(ctx, r)
+		msgID, _ := msgLookupByReqID(r.GetName())
+		switch {
+		case msgID != 0: //skip existing message for pending
+		default:
+			a.postRequest(ctx, r)
+		}
+
+	}
+	for reqID, msgID := range messageRequestMap {
+		r, err := a.TeleportClient.GetAccessRequests(ctx, types.AccessRequestFilter{
+			ID: reqID,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		switch r[0].GetState() {
+		case types.RequestState_APPROVED, types.RequestState_DENIED, types.RequestState_PROMOTED:
+			a.updateExisting(ctx, r[0], msgID)
+		default: //do nothing, it's either pending and we handled it before or somehow we got NONE
+		}
 	}
 	return nil
 }
 func (a *AccessRequestPlugin) postRequest(ctx context.Context, r types.AccessRequest) {
-	a.tb.sendKeyboard(ctx, a.bot, r)
+	msgID := a.tb.sendKeyboard(ctx, a.bot, r).ID
+	messageRequestMap[r.GetName()] = msgID
+}
+
+func (a *AccessRequestPlugin) updateExisting(ctx context.Context, r types.AccessRequest, msgID int) {
+
+	state := r.GetState()
+	var rqReason string
+	var status string
+
+	if rqReason = r.GetRequestReason(); rqReason == "" {
+		rqReason = "[Not provided]"
+	}
+	rqText := fmt.Sprintf("Access request:\n User: %s \n Requested roles: %s \n Reason: %s \n ID: %s", r.GetUser(), strings.Join(r.GetRoles(), ", "), rqReason, r.GetName())
+
+	switch state {
+	case types.RequestState_PENDING: //skip, we already posted
+		return
+	case types.RequestState_APPROVED:
+		status = "Approved"
+	case types.RequestState_DENIED:
+		status = "Denied"
+	case types.RequestState_PROMOTED:
+		status = "Promoted to Access List"
+	default:
+		fmt.Printf("Unknown request state")
+
+	}
+	a.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:    a.cfg.TgChatId,
+		MessageID: msgID,
+		Text:      rqText + "\n\nThis request has already been resolved. Status: " + status,
+	})
+}
+
+func msgLookupByReqID(reqID string) (int, error) {
+	if len(messageRequestMap) == 0 {
+		return 0, fmt.Errorf("no messsages in map")
+	}
+
+	msgID, ok := messageRequestMap[reqID]
+
+	if !ok {
+		return 0, fmt.Errorf("no message for request ID: %s", reqID)
+	}
+
+	return msgID, nil
 }
 
 func findUserByTrait(ctx context.Context, clt *client.Client, key, value string) (string, error) {
