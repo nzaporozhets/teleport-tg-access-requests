@@ -105,7 +105,7 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 			Created:                   time.Now(),
 		},
 	}); err != nil {
-		fmt.Printf("Error submitting access review: %v", err)
+		fmt.Printf("Error submitting access review: %v\n", err)
 
 		if strings.Contains(err.Error(), "the access request has been already") {
 			// Convert error to NotFound to simplify user-facing error replies.
@@ -114,17 +114,6 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 		}
 		return
 	}
-
-	b.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:    cb.Message.Message.Chat.ID,
-		MessageID: cb.Message.Message.ID,
-		Text:      cb.Message.Message.Text + "\n\nThis request has been reviewed by " + username + "\nDecision: " + action,
-	})
-
-	// b.SendMessage(ctx, &bot.SendMessageParams{
-	// 	ChatID: cb.Message.Message.Chat.ID,
-	// 	Text:   "Selected action: " + cb.Data,
-	// })
 }
 
 func (a *AccessRequestPlugin) defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -222,11 +211,8 @@ func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 			delete(messageRequestMap, reqID)
 			continue
 		}
-		switch r[0].GetState() {
-		case types.RequestState_APPROVED, types.RequestState_DENIED, types.RequestState_PROMOTED:
-			a.updateExisting(ctx, r[0], msgID)
-		default: //do nothing, it's either pending and we handled it before or somehow we got NONE
-		}
+
+		a.updateExisting(ctx, r[0], msgID)
 	}
 	return nil
 }
@@ -237,7 +223,6 @@ func (a *AccessRequestPlugin) postRequest(ctx context.Context, r types.AccessReq
 		return
 	}
 	msg, err := a.tb.sendKeyboard(ctx, a.bot, r)
-
 	if err != nil {
 		fmt.Printf("failed to send message, skipping adding msgID to the map\n")
 		return
@@ -250,6 +235,7 @@ func (a *AccessRequestPlugin) updateExisting(ctx context.Context, r types.Access
 
 	state := r.GetState()
 	var status string
+	var reviewers []string
 
 	rqText := a.tb.formatRequest(r)
 
@@ -266,11 +252,14 @@ func (a *AccessRequestPlugin) updateExisting(ctx context.Context, r types.Access
 		fmt.Printf("Unknown request state\n")
 		return
 	}
-
+	for _, review := range r.GetReviews() {
+		reviewers = append(reviewers, review.Author)
+	}
+	reviewersList := strings.Join(reviewers, ",")
 	if _, err := a.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    a.cfg.TgChatId,
 		MessageID: msgID,
-		Text:      "Access Request:\n" + rqText + "\n\nThis request has already been resolved. Status: " + status,
+		Text:      "Access Request:\n" + rqText + "Current reviewers: " + reviewersList + "\n\nThis request has been resolved. Status: " + status,
 	}); err != nil {
 		fmt.Printf("editing the message failed:\n%v\n", err)
 		return

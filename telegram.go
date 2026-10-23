@@ -43,6 +43,6 @@ func (tb *TgBot) formatRequest(r types.AccessRequest) string {
 	if rqReason = r.GetRequestReason(); rqReason == "" {
 		rqReason = "[Not provided]"
 	}
-	rqText := fmt.Sprintf(" User: %s \n Requested roles: %s \n Reason: %s \n ID: %s", r.GetUser(), strings.Join(r.GetRoles(), ", "), rqReason, r.GetName())
+	rqText := fmt.Sprintf(" User: %s \n Requested roles: %s \n Reason: %s \n ID: %s \n", r.GetUser(), strings.Join(r.GetRoles(), ", "), rqReason, r.GetName())
 	return rqText
 }
