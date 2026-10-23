@@ -51,7 +51,8 @@ func (a *AccessRequestPlugin) HandleEvent(ctx context.Context, e types.Event) er
 	if e.Type != types.OpPut || !r.GetState().IsPending() {
 		msgID, err := msgLookupByReqID(r.GetName())
 		if err != nil {
-			fmt.Printf("message lookup for event failed")
+			fmt.Printf("Message lookup for event resolved empty\n")
+			return nil
 		}
 		a.updateExisting(ctx, r, msgID)
 		return nil
@@ -128,7 +129,7 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 }
 
 func (a *AccessRequestPlugin) defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	fmt.Printf("Nothing to do ")
+	fmt.Printf("Nothing to do \n")
 }
 
 func (a *AccessRequestPlugin) checkUserTgTrait(ctx context.Context, tgUID int64) (string, error) {
@@ -184,6 +185,9 @@ func (a *AccessRequestPlugin) watchEvents(ctx context.Context) error {
 }
 
 func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
+
+	var pendingRqs = make(map[string]bool)
+
 	reqs, err := a.TeleportClient.GetAccessRequests(ctx, types.AccessRequestFilter{
 		State: types.RequestState_PENDING,
 	})
@@ -193,13 +197,16 @@ func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 
 	for _, r := range reqs {
 		msgID, _ := msgLookupByReqID(r.GetName())
-
+		pendingRqs[r.GetName()] = true
 		if msgID == 0 { //Only post if no existing message for pending
 			a.postRequest(ctx, r)
 		}
 
 	}
 	for reqID, msgID := range messageRequestMap {
+		if pendingRqs[reqID] {
+			continue //skip updates for known pending messages
+		}
 		r, err := a.TeleportClient.GetAccessRequests(ctx, types.AccessRequestFilter{
 			ID: reqID,
 		})
