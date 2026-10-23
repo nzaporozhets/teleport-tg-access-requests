@@ -49,6 +49,11 @@ func (a *AccessRequestPlugin) HandleEvent(ctx context.Context, e types.Event) er
 		return nil
 	}
 	if e.Type != types.OpPut || !r.GetState().IsPending() {
+		msgID, err := msgLookupByReqID(r.GetName())
+		if err != nil {
+			fmt.Printf("message lookup for event failed")
+		}
+		a.updateExisting(ctx, r, msgID)
 		return nil
 	}
 	a.postRequest(ctx, r)
@@ -188,9 +193,8 @@ func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 
 	for _, r := range reqs {
 		msgID, _ := msgLookupByReqID(r.GetName())
-		switch {
-		case msgID != 0: //skip existing message for pending
-		default:
+
+		if msgID == 0 { //Only post if no existing message for pending
 			a.postRequest(ctx, r)
 		}
 
@@ -202,6 +206,19 @@ func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if len(r) == 0 {
+			fmt.Printf("request with ID %s has expired or has been deleted\n", reqID)
+			if _, err := a.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+				ChatID:    a.cfg.TgChatId,
+				MessageID: msgID,
+				Text:      "Access Request with ID " + reqID + " has expired or has been deleted\n",
+			}); err != nil {
+				fmt.Printf("editing the message failed:\n%v\n", err)
+				continue
+			}
+			delete(messageRequestMap, reqID)
+			continue
+		}
 		switch r[0].GetState() {
 		case types.RequestState_APPROVED, types.RequestState_DENIED, types.RequestState_PROMOTED:
 			a.updateExisting(ctx, r[0], msgID)
@@ -211,23 +228,25 @@ func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 	return nil
 }
 func (a *AccessRequestPlugin) postRequest(ctx context.Context, r types.AccessRequest) {
-	msgID := a.tb.sendKeyboard(ctx, a.bot, r).ID
+	msg, err := a.tb.sendKeyboard(ctx, a.bot, r)
+	if err != nil {
+
+		fmt.Printf("failed to send message, skipping adding msgID to the map\n")
+		return
+	}
+	msgID := msg.ID
 	messageRequestMap[r.GetName()] = msgID
 }
 
 func (a *AccessRequestPlugin) updateExisting(ctx context.Context, r types.AccessRequest, msgID int) {
 
 	state := r.GetState()
-	var rqReason string
 	var status string
 
-	if rqReason = r.GetRequestReason(); rqReason == "" {
-		rqReason = "[Not provided]"
-	}
-	rqText := fmt.Sprintf("Access request:\n User: %s \n Requested roles: %s \n Reason: %s \n ID: %s", r.GetUser(), strings.Join(r.GetRoles(), ", "), rqReason, r.GetName())
+	rqText := a.tb.formatRequest(r)
 
 	switch state {
-	case types.RequestState_PENDING: //skip, we already posted
+	case types.RequestState_PENDING, types.RequestState_NONE:
 		return
 	case types.RequestState_APPROVED:
 		status = "Approved"
@@ -236,17 +255,22 @@ func (a *AccessRequestPlugin) updateExisting(ctx context.Context, r types.Access
 	case types.RequestState_PROMOTED:
 		status = "Promoted to Access List"
 	default:
-		fmt.Printf("Unknown request state")
-
+		fmt.Printf("Unknown request state\n")
+		return
 	}
-	a.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+
+	if _, err := a.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    a.cfg.TgChatId,
 		MessageID: msgID,
-		Text:      rqText + "\n\nThis request has already been resolved. Status: " + status,
-	})
+		Text:      "Access Request:\n" + rqText + "\n\nThis request has already been resolved. Status: " + status,
+	}); err != nil {
+		fmt.Printf("editing the message failed:\n%v\n", err)
+		return
+	}
+	delete(messageRequestMap, r.GetName())
 }
 
-func msgLookupByReqID(reqID string) (int, error) {
+func msgLookupByReqID(reqID string) (int, error) { //currently not used for intended purpose, may be needed later if we pull existing resolved events that don't have a message
 	if len(messageRequestMap) == 0 {
 		return 0, fmt.Errorf("no messsages in map")
 	}
