@@ -79,10 +79,6 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 		return
 	}
 
-	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-		CallbackQueryID: cb.ID,
-		ShowAlert:       false,
-	})
 	action, reqID, ok := strings.Cut(cb.Data, ":")
 	if !ok {
 		return
@@ -93,7 +89,7 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 	case denyButtonID:
 		proposedState = types.RequestState_DENIED
 	default:
-		fmt.Println("Skipping unknown aciton", action)
+		fmt.Println("Skipping unknown action", action)
 		return
 	}
 	if _, err := a.TeleportClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
@@ -106,14 +102,18 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 		},
 	}); err != nil {
 		fmt.Printf("Error submitting access review: %v\n", err)
-
-		if strings.Contains(err.Error(), "the access request has been already") {
-			// Convert error to NotFound to simplify user-facing error replies.
-			fmt.Println("request has already been resolved")
-			return
-		}
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: cb.ID,
+			Text:            "Failed to submit the review: " + trace.UserMessage(err),
+			ShowAlert:       true,
+		})
 		return
 	}
+	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+		CallbackQueryID: cb.ID,
+		Text:            "Decision recorded",
+		ShowAlert:       false,
+	})
 }
 
 func (a *AccessRequestPlugin) defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -253,13 +253,18 @@ func (a *AccessRequestPlugin) updateExisting(ctx context.Context, r types.Access
 		return
 	}
 	for _, review := range r.GetReviews() {
-		reviewers = append(reviewers, review.Author)
+		if review.ProposedState == state {
+			reviewers = append(reviewers, review.Author)
+		}
 	}
-	reviewersList := strings.Join(reviewers, ",")
+	suffix := ""
+	if len(reviewers) > 0 { //may be empty for tctl approvals
+		suffix = " by " + strings.Join(reviewers, ", ")
+	}
 	if _, err := a.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    a.cfg.TgChatId,
 		MessageID: msgID,
-		Text:      "Access Request:\n" + rqText + "Current reviewers: " + reviewersList + "\n\nThis request has been resolved. Status: " + status,
+		Text:      "Access Request:\n" + rqText + "\nThis request has been resolved.\nStatus: " + status + suffix,
 	}); err != nil {
 		fmt.Printf("editing the message failed:\n%v\n", err)
 		return
