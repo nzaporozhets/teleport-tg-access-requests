@@ -49,9 +49,8 @@ func (a *AccessRequestPlugin) HandleEvent(ctx context.Context, e types.Event) er
 		return nil
 	}
 	if e.Type != types.OpPut || !r.GetState().IsPending() {
-		msgID, err := msgLookupByReqID(r.GetName())
-		if err != nil {
-			fmt.Printf("Message lookup for event resolved empty\n")
+		msgID, ok := messageRequestMap[r.GetName()]
+		if !ok {
 			return nil
 		}
 		a.updateExisting(ctx, r, msgID)
@@ -196,11 +195,8 @@ func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 	}
 
 	for _, r := range reqs {
-		msgID, _ := msgLookupByReqID(r.GetName())
 		pendingRqs[r.GetName()] = true
-		if msgID == 0 { //Only post if no existing message for pending
-			a.postRequest(ctx, r)
-		}
+		a.postRequest(ctx, r)
 
 	}
 	for reqID, msgID := range messageRequestMap {
@@ -234,10 +230,15 @@ func (a *AccessRequestPlugin) syncExisting(ctx context.Context) error {
 	}
 	return nil
 }
-func (a *AccessRequestPlugin) postRequest(ctx context.Context, r types.AccessRequest) {
-	msg, err := a.tb.sendKeyboard(ctx, a.bot, r)
-	if err != nil {
 
+func (a *AccessRequestPlugin) postRequest(ctx context.Context, r types.AccessRequest) {
+
+	if _, ok := messageRequestMap[r.GetName()]; ok {
+		return
+	}
+	msg, err := a.tb.sendKeyboard(ctx, a.bot, r)
+
+	if err != nil {
 		fmt.Printf("failed to send message, skipping adding msgID to the map\n")
 		return
 	}
@@ -275,20 +276,6 @@ func (a *AccessRequestPlugin) updateExisting(ctx context.Context, r types.Access
 		return
 	}
 	delete(messageRequestMap, r.GetName())
-}
-
-func msgLookupByReqID(reqID string) (int, error) { //currently not used for intended purpose, may be needed later if we pull existing resolved events that don't have a message
-	if len(messageRequestMap) == 0 {
-		return 0, fmt.Errorf("no messsages in map")
-	}
-
-	msgID, ok := messageRequestMap[reqID]
-
-	if !ok {
-		return 0, fmt.Errorf("no message for request ID: %s", reqID)
-	}
-
-	return msgID, nil
 }
 
 func findUserByTrait(ctx context.Context, clt *client.Client, key, value string) (string, error) {
