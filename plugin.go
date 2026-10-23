@@ -81,6 +81,11 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 
 	action, reqID, ok := strings.Cut(cb.Data, ":")
 	if !ok {
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: cb.ID,
+			Text:            "Failed to parse action",
+			ShowAlert:       false,
+		})
 		return
 	}
 	switch action {
@@ -90,6 +95,11 @@ func (a *AccessRequestPlugin) handleDecision(ctx context.Context, b *bot.Bot, up
 		proposedState = types.RequestState_DENIED
 	default:
 		fmt.Println("Skipping unknown action", action)
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: cb.ID,
+			Text:            "Unknown action",
+			ShowAlert:       false,
+		})
 		return
 	}
 	if _, err := a.TeleportClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
